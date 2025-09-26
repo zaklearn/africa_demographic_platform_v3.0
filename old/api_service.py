@@ -74,7 +74,7 @@ class WorldBankAPIService:
                             'country_iso2': country_code,
                             'country_name': country_info.get('value', ''),
                             'year': year,
-                            'value': round(float(record.get('value')), 2),  # ARRONDIR LES VALEURS
+                            'value': float(record.get('value')),
                             'indicator_code': indicator_code
                         })
                 except (ValueError, TypeError):
@@ -115,7 +115,7 @@ class WorldBankAPIService:
             if population > 0:
                 total_population += population
                 country_populations[country_code] = {
-                    'population': round(population, 0),  # ARRONDIR
+                    'population': population,
                     'name': row['country_name'],
                     'year': row['year']
                 }
@@ -207,7 +207,7 @@ class WorldBankAPIService:
                 growth_adjustment = -1.2 * growth_rate if pd.notna(growth_rate) else 0
                 
                 median_age = base_age + fertility_adjustment + growth_adjustment
-                return round(np.clip(median_age, 12, 50), 2)  # ARRONDIR ET limites réalistes
+                return np.clip(median_age, 12, 50)  # Limites réalistes
             
             df['median_age'] = df.apply(
                 lambda row: calculate_median_age(
@@ -220,21 +220,19 @@ class WorldBankAPIService:
         # Ratios de dépendance (CONSERVÉS - calculs corrects selon audit)
         if all(col in df.columns for col in ['population_0_14_percent', 'population_15_64_percent']):
             mask = df['population_15_64_percent'] > 0
-            df.loc[mask, 'child_dependency_ratio'] = round((
+            df.loc[mask, 'child_dependency_ratio'] = (
                 df.loc[mask, 'population_0_14_percent'] / df.loc[mask, 'population_15_64_percent'] * 100
-            ), 2)  # ARRONDIR
+            )
         
         if all(col in df.columns for col in ['population_65_plus_percent', 'population_15_64_percent']):
             mask = df['population_15_64_percent'] > 0
-            df.loc[mask, 'old_age_dependency_ratio'] = round((
+            df.loc[mask, 'old_age_dependency_ratio'] = (
                 df.loc[mask, 'population_65_plus_percent'] / df.loc[mask, 'population_15_64_percent'] * 100
-            ), 2)  # ARRONDIR
+            )
         
         # Ratio de dépendance total
         if all(col in df.columns for col in ['child_dependency_ratio', 'old_age_dependency_ratio']):
-            df['total_dependency_ratio'] = round(
-                df['child_dependency_ratio'] + df['old_age_dependency_ratio'], 2
-            )  # ARRONDIR
+            df['total_dependency_ratio'] = df['child_dependency_ratio'] + df['old_age_dependency_ratio']
         
         # Score dividende démographique (sera corrigé dans méthode suivante)
         df = self._calculate_demographic_dividend(df)
@@ -294,9 +292,6 @@ class WorldBankAPIService:
                 np.maximum(0, 35.0 * (df['population_15_64_percent'] - 50) / 15)  # Progression
             )
             df['dividend_score'] += working_score
-        
-        # ARRONDIR le score final
-        df['dividend_score'] = df['dividend_score'].round(2)
         
         # Classification avec seuils validés
         def classify_dividend(score):

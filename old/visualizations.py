@@ -16,18 +16,6 @@ class MultilingualVisualizations:
     
     def __init__(self, ml_config: MultilingualConfig):
         self.ml_config = ml_config
-        
-        # CSS pour mode clair et police tableaux augmentée
-        st.markdown("""
-        <style>
-            /* Force mode clair */
-            .stApp { background-color: white !important; color: black !important; }
-            
-            /* Tableaux avec police augmentée */
-            .dataframe { font-size: 16px !important; }
-            .dataframe td, .dataframe th { font-size: 16px !important; padding: 8px !important; }
-        </style>
-        """, unsafe_allow_html=True)
     
     def create_continental_overview(self, df: pd.DataFrame):
         """Vue continentale multilingue"""
@@ -45,7 +33,7 @@ class MultilingualVisualizations:
             st.error(f"❌ {continental_metrics['error']}")
             return
         
-        # Mise en évidence de la population - VALEURS ARRONDIES
+        # Mise en évidence de la population
         pop_millions = continental_metrics.get('total_population_millions', 0)
         if pop_millions > 0:
             pop_formatted = self.ml_config.format_number(pop_millions, 0)
@@ -60,7 +48,7 @@ class MultilingualVisualizations:
             </div>
             ''', unsafe_allow_html=True)
         
-        # Métriques clés avec formatage localisé - VALEURS ARRONDIES
+        # Métriques clés avec formatage localisé
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
@@ -144,7 +132,7 @@ class MultilingualVisualizations:
                 """, unsafe_allow_html=True)
     
     def create_africa_map(self, df: pd.DataFrame, indicator: str, year: int):
-        """Carte Afrique multilingue avec VALEURS ARRONDIES"""
+        """Carte Afrique multilingue"""
         
         map_data = df[df['year'] == year].copy()
         if map_data.empty or indicator not in map_data.columns:
@@ -157,9 +145,6 @@ class MultilingualVisualizations:
         
         if map_data.empty:
             return
-        
-        # ARRONDIR les valeurs pour la carte
-        map_data[indicator] = map_data[indicator].round(2)
         
         # Mapping ISO2 vers ISO3
         iso2_to_iso3 = {
@@ -188,7 +173,6 @@ class MultilingualVisualizations:
             locations='country_iso3',
             color=indicator,
             hover_name='country_name',
-            hover_data={indicator: ':.2f'},  # ARRONDIR dans hover
             color_continuous_scale='Viridis',
             title=title,
             labels={indicator: indicator_name}
@@ -272,10 +256,10 @@ class MultilingualVisualizations:
                 
                 age_distribution.append(max(100, population))
             
-            # Normalisation en pourcentages - ARRONDIR
+            # Normalisation en pourcentages
             total_pop = sum(age_distribution)
             if total_pop > 0:
-                percentages = [round(pop / total_pop * 100, 2) for pop in age_distribution]
+                percentages = [pop / total_pop * 100 for pop in age_distribution]
             else:
                 # Distribution de sécurité si calcul échoue
                 percentages = self._get_fallback_distribution()
@@ -297,9 +281,9 @@ class MultilingualVisualizations:
             # Distribution réaliste
             population_by_age = generate_demographic_distribution(tfr, life_exp, growth_rate)
             
-            # Répartition par sexe (ratio démographique réaliste) - ARRONDIR
-            male_pop = [round(-pop * 0.515, 2) for pop in population_by_age]
-            female_pop = [round(pop * 0.485, 2) for pop in population_by_age]
+            # Répartition par sexe (ratio démographique réaliste)
+            male_pop = [-pop * 0.515 for pop in population_by_age]  # Légèrement plus d'hommes à la naissance
+            female_pop = [pop * 0.485 for pop in population_by_age]
             
             fig.add_trace(go.Bar(
                 y=age_groups,
@@ -333,8 +317,8 @@ class MultilingualVisualizations:
                 growth_rate = latest_data.get('population_growth_rate')
                 
                 population_by_age = generate_demographic_distribution(tfr, life_exp, growth_rate)
-                male_pop = [round(-pop * 0.515, 2) for pop in population_by_age]
-                female_pop = [round(pop * 0.485, 2) for pop in population_by_age]
+                male_pop = [-pop * 0.515 for pop in population_by_age]
+                female_pop = [pop * 0.485 for pop in population_by_age]
                 
                 frames.append(go.Frame(
                     data=[
@@ -411,19 +395,19 @@ class MultilingualVisualizations:
         """Validation et imputation TFR"""
         if pd.isna(tfr) or tfr <= 0:
             return 4.5  # TFR moyen Afrique subsaharienne
-        return round(np.clip(tfr, 1.2, 8.0), 2)  # ARRONDIR
+        return np.clip(tfr, 1.2, 8.0)
     
     def _validate_life_expectancy(self, life_exp):
         """Validation et imputation espérance de vie"""
         if pd.isna(life_exp) or life_exp <= 0:
             return 62.0  # Espérance de vie moyenne Afrique
-        return round(np.clip(life_exp, 40, 85), 1)  # ARRONDIR
+        return np.clip(life_exp, 40, 85)
     
     def _validate_growth_rate(self, growth_rate):
         """Validation et imputation taux de croissance"""
         if pd.isna(growth_rate):
             return 2.5  # Croissance démographique moyenne Afrique
-        return round(np.clip(growth_rate, -2.0, 6.0), 2)  # ARRONDIR
+        return np.clip(growth_rate, -2.0, 6.0)
     
     def _calculate_survival_rates(self, life_exp: float) -> list:
         """Calcul taux de survie par cohorte basé sur Coale-Demeny"""
@@ -441,14 +425,14 @@ class MultilingualVisualizations:
                 decline_factor = (80 - life_exp) * 0.008
                 base_survival = max(0.25, 0.80 - (i - 13) * 0.08 - decline_factor)
             
-            survival_rates.append(round(max(0.1, min(0.99, base_survival)), 3))  # ARRONDIR
+            survival_rates.append(max(0.1, min(0.99, base_survival)))
         
         return survival_rates
     
     def _get_fallback_distribution(self) -> list:
-        """Distribution de sécurité si calculs échouent - ARRONDIR"""
+        """Distribution de sécurité si calculs échouent"""
         # Distribution typique Afrique subsaharienne
-        return [round(x, 2) for x in [7.2, 6.8, 6.4, 6.0, 5.6, 5.2, 4.8, 4.4, 4.0, 3.6, 3.2, 2.8, 2.4, 2.0, 1.6, 1.2, 0.8]]
+        return [7.2, 6.8, 6.4, 6.0, 5.6, 5.2, 4.8, 4.4, 4.0, 3.6, 3.2, 2.8, 2.4, 2.0, 1.6, 1.2, 0.8]
 
 if __name__ == "__main__":
     pass

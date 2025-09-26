@@ -117,17 +117,14 @@ class MultilingualConfig:
         return self.translator.get_text(key, self.current_language)
     
     def format_number(self, number: float, decimals: int = 1) -> str:
-        """Formatage des nombres selon la locale - VALEURS ARRONDIES"""
-        # ARRONDIR d'abord le nombre
-        rounded_number = round(number, decimals)
-        
+        """Formatage des nombres selon la locale"""
         if self.current_language == "fr":
             # Format français : virgule décimale, espace milliers
-            formatted = f"{rounded_number:,.{decimals}f}".replace(",", " ").replace(".", ",")
+            formatted = f"{number:,.{decimals}f}".replace(",", " ").replace(".", ",")
             return formatted.replace(" ", "\u00a0")  # Espace insécable
         else:
             # Format anglais : point décimal, virgule milliers
-            return f"{rounded_number:,.{decimals}f}"
+            return f"{number:,.{decimals}f}"
     
     def get_date_format(self) -> str:
         """Format de date selon la langue"""

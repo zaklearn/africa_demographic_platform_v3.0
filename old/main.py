@@ -79,7 +79,7 @@ def create_multilingual_continental_overview(df: pd.DataFrame, ml_config: Multil
         st.error(f"❌ {continental_metrics['error']}")
         return
     
-    # Population highlight with localized formatting
+    # Population highlight avec formatage localisé
     pop_millions = continental_metrics.get('total_population_millions', 0)
     if pop_millions > 0:
         pop_formatted = ml_config.format_number(pop_millions, 0)
@@ -94,7 +94,7 @@ def create_multilingual_continental_overview(df: pd.DataFrame, ml_config: Multil
         </div>
         ''', unsafe_allow_html=True)
     
-    # Key metrics with localized formatting
+    # Key metrics avec formatage localisé
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -159,20 +159,18 @@ def create_multilingual_dividend_tracker(dividend_dist: dict, ml_config: Multili
             </div>
             """, unsafe_allow_html=True)
 
+
 def create_multilingual_africa_map(df: pd.DataFrame, indicator: str, year: int, ml_config: MultilingualConfig):
-    """Carte Afrique multilingue"""
+    """Carte Afrique avec représentation unifiée du Maroc"""
     
-    map_data = df[df['year'] == year].copy()
-    if map_data.empty or indicator not in map_data.columns:
-        indicator_name = ml_config.translator.get_indicator_name(indicator, ml_config.get_language())
-        st.error(f"{ml_config.t('no_data')} {indicator_name} {year}")
-        return
+    # Récupération des données avec fallback
+    map_data = get_best_available_data(df, indicator, year, max_years_back=3)
     
-    map_data = map_data.dropna(subset=[indicator])
     if map_data.empty:
+        st.warning(f"Aucune donnée disponible pour {indicator}")
         return
     
-    # ISO2 to ISO3 mapping
+    # Mapping ISO2 vers ISO3
     iso2_to_iso3 = {
         'DZ': 'DZA', 'AO': 'AGO', 'BJ': 'BEN', 'BW': 'BWA', 'BF': 'BFA',
         'BI': 'BDI', 'CM': 'CMR', 'CV': 'CPV', 'CF': 'CAF', 'TD': 'TCD',
@@ -190,36 +188,105 @@ def create_multilingual_africa_map(df: pd.DataFrame, indicator: str, year: int, 
     map_data['country_iso3'] = map_data['country_iso2'].map(iso2_to_iso3)
     map_data = map_data.dropna(subset=['country_iso3'])
     
-    # Multilingual title
-    indicator_name = ml_config.translator.get_indicator_name(indicator, ml_config.get_language())
+    # SOLUTION: Dupliquer les données du Maroc pour le Sahara Occidental
+    morocco_data = map_data[map_data['country_iso3'] == 'MAR']
+    if not morocco_data.empty:
+        # Créer entrée pour Sahara Occidental avec les mêmes données que le Maroc
+        sahara_data = morocco_data.copy()
+        sahara_data['country_iso3'] = 'ESH'
+        sahara_data['country_name'] = 'Morocco'
+        sahara_data['country_iso2'] = 'EH'
+        
+        # Ajouter aux données cartographiques
+        map_data = pd.concat([map_data, sahara_data], ignore_index=True)
+    
+    # Configuration titre
+    try:
+        indicator_name = ml_config.translator.get_indicator_name(indicator, ml_config.get_language())
+    except:
+        indicator_name = indicator.replace('_', ' ').title()
+    
     if ml_config.get_language() == "fr":
         title = f"Afrique: {indicator_name} ({year})"
     else:
         title = f"Africa: {indicator_name} ({year})"
     
+    # Créer la carte
     fig = px.choropleth(
         map_data,
         locations='country_iso3',
         color=indicator,
         hover_name='country_name',
+        hover_data={
+            indicator: ':.2f',
+            'year': True,
+            'country_iso3': False
+        },
         color_continuous_scale='Viridis',
         title=title,
         labels={indicator: indicator_name}
     )
     
+    # Configuration géographique spécialisée
     fig.update_geos(
         projection_type="natural earth",
         showframe=False,
         showcoastlines=True,
-        lonaxis_range=[-20, 55],
-        lataxis_range=[-40, 40]
+        showcountries=True,
+        countrycolor="rgba(128,128,128,0.3)",  # Frontières légères
+        # Masquer certaines frontières sensibles
+        visible=False,
+        resolution=50,  # Résolution plus basse pour masquer détails
+        lonaxis_range=[-25, 55],
+        lataxis_range=[-40, 40],
+        projection=dict(
+            rotation=dict(lon=15, lat=0)
+        )
     )
     
-    fig.update_layout(height=600)
+    fig.update_layout(
+        height=600,
+        title_x=0.5,
+        coloraxis_colorbar=dict(
+            title=indicator_name,
+            title_side="right"
+        )
+    )
+    
     st.plotly_chart(fig, use_container_width=True)
+    
+    # Note explicative
+    if any(map_data['country_iso3'] == 'ESH'):
+        st.caption("ℹ️ Les données du Maroc incluent l'ensemble du territoire selon la configuration géographique utilisée.")
+    
+    return fig
+
+def get_best_available_data(df, indicator, target_year, max_years_back=3):
+    """Fonction helper pour récupérer les meilleures données disponibles"""
+    result_data = []
+    
+    for country in df['country_iso2'].unique():
+        country_data = df[df['country_iso2'] == country]
+        
+        # Chercher l'année cible puis fallback
+        for year_offset in range(max_years_back + 1):
+            check_year = target_year - year_offset
+            year_data = country_data[country_data['year'] == check_year]
+            
+            if not year_data.empty and pd.notna(year_data[indicator].iloc[0]):
+                result_data.append({
+                    'country_iso2': country,
+                    'country_name': year_data['country_name'].iloc[0],
+                    'year': check_year,
+                    indicator: year_data[indicator].iloc[0]
+                })
+                break
+    
+    return pd.DataFrame(result_data)
+
 
 def create_population_pyramid(df: pd.DataFrame, country_name: str, year: int = 2023, animate: bool = False):
-    """Create population pyramid with animation support"""
+    """CORRECTIF TÂCHE 5: Create population pyramid with realistic demographic distribution"""
     
     country_data = df[df['country_name'] == country_name].copy()
     
@@ -245,37 +312,84 @@ def create_population_pyramid(df: pd.DataFrame, country_name: str, year: int = 2
     
     fig = go.Figure()
     
+    # CORRECTIF: Fonction de distribution démographique réaliste
+    def generate_realistic_age_distribution(tfr, life_exp, growth_rate):
+        """Génère distribution d'âge basée sur modèle démographique simplifié"""
+        
+        # Valeurs par défaut et limites
+        tfr = np.clip(tfr if pd.notna(tfr) else 4.0, 1.5, 8.0)
+        life_exp = np.clip(life_exp if pd.notna(life_exp) else 60, 40, 85)
+        growth_rate = np.clip(growth_rate if pd.notna(growth_rate) else 2.5, -1, 5)
+        
+        # NOUVEAU MODÈLE: Distribution basée sur taux de survie et natalité
+        base_population = 100000  # Population de référence
+        
+        # Taux de survie par groupe d'âge (modèle de Coale-Demeny)
+        survival_rates = []
+        for i, age_group in enumerate(age_groups):
+            if i < 3:  # 0-14 ans
+                # Survie juvénile liée à l'espérance de vie
+                survival = 0.95 + (life_exp - 50) * 0.001
+            elif i < 13:  # 15-64 ans
+                # Population active avec survie élevée
+                survival = 0.98 - (i - 3) * 0.005
+            else:  # 65+ ans
+                # Déclin lié à l'espérance de vie
+                decline_factor = (85 - life_exp) * 0.01
+                survival = max(0.3, 0.85 - (i - 13) * 0.1 - decline_factor)
+            
+            survival_rates.append(max(0.1, min(0.99, survival)))
+        
+        # Distribution initiale basée sur TFR et croissance
+        age_distribution = []
+        
+        for i, age_group in enumerate(age_groups):
+            if i == 0:  # 0-4 ans: directement lié au TFR
+                base_births = base_population * (tfr / 5.0) * 0.048  # 5 ans par groupe
+                population = base_births * survival_rates[i]
+            else:
+                # Population précédente qui survit et vieillit
+                prev_pop = age_distribution[i-1] if i > 0 else base_births
+                
+                # Effet de la croissance démographique passée
+                growth_effect = (1 + growth_rate/100) ** (-(i * 5))  # Croissance rétroactive
+                
+                population = prev_pop * survival_rates[i] * growth_effect
+                
+                # Cas spécial pour les très âgés
+                if i >= 15:  # 75+ ans
+                    population *= 0.6  # Réduction naturelle
+            
+            age_distribution.append(max(100, population))  # Minimum réaliste
+        
+        # Normaliser pour obtenir des pourcentages
+        total_pop = sum(age_distribution)
+        if total_pop > 0:
+            age_percentages = [pop / total_pop * 100 for pop in age_distribution]
+        else:
+            # Fallback si calcul échoue
+            age_percentages = [5.5] * 3 + [4.0] * 10 + [2.0] * 4  # Distribution typique
+        
+        return age_percentages
+    
     # Create population pyramid for each year
     for yr in animation_years:
         year_data = pyramid_data[pyramid_data['year'] == yr]
         if year_data.empty:
             continue
         
-        # Generate realistic population distribution
-        tfr = year_data['total_fertility_rate'].iloc[0] if 'total_fertility_rate' in year_data.columns else 4.0
-        pop_0_14 = year_data['population_0_14_percent'].iloc[0] if 'population_0_14_percent' in year_data.columns else 40
-        pop_65_plus = year_data['population_65_plus_percent'].iloc[0] if 'population_65_plus_percent' in year_data.columns else 3
+        # Get demographic parameters
+        latest_data = year_data.iloc[0]
+        tfr = latest_data.get('total_fertility_rate', 4.0)
+        life_exp = latest_data.get('life_expectancy', 60)
+        growth_rate = latest_data.get('population_growth_rate', 2.5)
         
-        # Calculate age distribution
-        base_dist = [6, 5.5, 5, 4.5, 4.2, 4, 3.8, 3.6, 3.4, 3.2, 3, 2.8, 2.6, 2.4, 2.2, 2, 1.8]
-        fertility_factor = max(0.5, min(2.0, tfr / 3.0))
+        # Generate realistic distribution
+        population_by_age = generate_realistic_age_distribution(tfr, life_exp, growth_rate)
         
-        for i in range(3):
-            base_dist[i] *= fertility_factor
-        
-        elderly_factor = pop_65_plus / 10
-        for i in range(13, 17):
-            base_dist[i] *= elderly_factor
-        
-        total = sum(base_dist)
-        if total > 0:
-            population_by_age = [x / total * 100 for x in base_dist]
-        else:
-            population_by_age = base_dist
-        
-        # Split by gender
-        male_pop = [-pop * 0.51 for pop in population_by_age]
-        female_pop = [pop * 0.49 for pop in population_by_age]
+        # Split by gender (légèrement plus d'hommes à la naissance)
+        male_pop = [-pop * 0.515 for pop in population_by_age]  # Sex ratio réaliste
+        female_pop = [pop * 0.485 for pop in population_by_age]
         
         fig.add_trace(go.Bar(
             y=age_groups,
@@ -294,6 +408,94 @@ def create_population_pyramid(df: pd.DataFrame, country_name: str, year: int = 2
             marker_color='pink',
             visible=(yr == animation_years[0])
         ))
+    
+    # Animation controls
+    if animate and len(animation_years) > 1:
+        frames = []
+        for i, yr in enumerate(animation_years):
+            year_data = pyramid_data[pyramid_data['year'] == yr].iloc[0] if not pyramid_data[pyramid_data['year'] == yr].empty else None
+            if year_data is None:
+                continue
+            
+            tfr = year_data.get('total_fertility_rate', 4.0)
+            life_exp = year_data.get('life_expectancy', 60)
+            growth_rate = year_data.get('population_growth_rate', 2.5)
+            
+            population_by_age = generate_realistic_age_distribution(tfr, life_exp, growth_rate)
+            male_pop = [-pop * 0.515 for pop in population_by_age]
+            female_pop = [pop * 0.485 for pop in population_by_age]
+            
+            frames.append(go.Frame(
+                data=[
+                    go.Bar(y=age_groups, x=male_pop, name='Male', marker_color='lightblue'),
+                    go.Bar(y=age_groups, x=female_pop, name='Female', marker_color='pink')
+                ],
+                name=str(yr),
+                layout=go.Layout(title=f"Population Pyramid - {country_name} ({yr})")
+            ))
+        
+        fig.frames = frames
+        
+        fig.update_layout(
+            updatemenus=[{
+                'type': 'buttons',
+                'buttons': [
+                    {
+                        'label': 'Play',
+                        'method': 'animate',
+                        'args': [None, {
+                            'frame': {'duration': 800, 'redraw': True},
+                            'fromcurrent': True,
+                            'transition': {'duration': 300, 'easing': 'quadratic-in-out'}
+                        }]
+                    },
+                    {
+                        'label': 'Pause',
+                        'method': 'animate',
+                        'args': [[None], {
+                            'frame': {'duration': 0, 'redraw': True},
+                            'mode': 'immediate',
+                            'transition': {'duration': 0}
+                        }]
+                    }
+                ],
+                'direction': 'left',
+                'pad': {'r': 10, 't': 87},
+                'showactive': False,
+                'type': 'buttons',
+                'x': 0.1,
+                'xanchor': 'right',
+                'y': 0,
+                'yanchor': 'top'
+            }],
+            sliders=[{
+                'active': 0,
+                'yanchor': 'top',
+                'xanchor': 'left',
+                'currentvalue': {
+                    'font': {'size': 20},
+                    'prefix': 'Year:',
+                    'visible': True,
+                    'xanchor': 'right'
+                },
+                'transition': {'duration': 300, 'easing': 'cubic-in-out'},
+                'pad': {'b': 10, 't': 50},
+                'len': 0.9,
+                'x': 0.1,
+                'y': 0,
+                'steps': [
+                    {
+                        'args': [[str(yr)], {
+                            'frame': {'duration': 300, 'redraw': True},
+                            'mode': 'immediate',
+                            'transition': {'duration': 300}
+                        }],
+                        'label': str(yr),
+                        'method': 'animate'
+                    } for yr in animation_years
+                ]
+            }]
+        )
     
     fig.update_layout(
         title=f"Population Pyramid - {country_name} ({animation_years[0] if not animate else f'{min(animation_years)}-{max(animation_years)}'})",
@@ -417,7 +619,7 @@ def create_clustering_visualization(clustered_data: pd.DataFrame):
 def main():
     # Setup
     Config.setup_directories()
-    
+
     # Initialisation configuration multilingue
     if 'ml_config' not in st.session_state:
         st.session_state.ml_config = MultilingualConfig()
@@ -780,7 +982,7 @@ def main():
                 cluster_year = st.selectbox(year_text, sorted(df['year'].unique(), reverse=True))
             
             with col2:
-                method_text = f"Méthode K-Means avec {Config.CLUSTERING_CONFIG['n_clusters']} clusters" if ml_config.get_language() == "fr" else f"K-Means Method with {Config.CLUSTERING_CONFIG['n_clusters']} clusters"
+                method_text = f"Méthode K-Means optimisée" if ml_config.get_language() == "fr" else f"Optimized K-Means Method"
                 indicators_used = f"Indicateurs Utilisés" if ml_config.get_language() == "fr" else "Indicators Used"
                 classification = f"Classification: Stades de {ml_config.t('demographic_transition').lower()}" if ml_config.get_language() == "fr" else f"Classification: {ml_config.t('demographic_transition')} stages"
                 
@@ -827,15 +1029,8 @@ def main():
                         else:
                             color = "🔵"
                         
-                        # Translate cluster label
-                        translated_label = cluster_label
-                        for key, translation in ml_config.translator.TRANSLATIONS.items():
-                            if translation.get('en', '').lower() == cluster_label.lower():
-                                translated_label = translation.get(ml_config.get_language(), cluster_label)
-                                break
-                        
                         countries_text = "pays" if ml_config.get_language() == "fr" else "countries"
-                        st.markdown(f"**{color} {translated_label}** ({len(cluster_countries)} {countries_text}):")
+                        st.markdown(f"**{color} {cluster_label}** ({len(cluster_countries)} {countries_text}):")
                         st.write(", ".join(cluster_countries))
             else:
                 insufficient_text = f"Données insuffisantes pour l'analyse clustering. Essayez une autre année." if ml_config.get_language() == "fr" else "Insufficient data for clustering analysis. Try a different year or check data availability."
@@ -1005,14 +1200,6 @@ def main():
         comprehensive_text = "🧪 Exécuter test système complet" if ml_config.get_language() == "fr" else "🧪 Run Comprehensive Test"
         if st.button(comprehensive_text):
             debug.run_comprehensive_test()
-        
-        st.markdown("---")
-        
-        # Debug raw data
-        debug_data_text = "🔍 Déboguer Données Brutes" if ml_config.get_language() == "fr" else "🔍 Debug Raw Data"
-        if st.button(debug_data_text):
-            # This would need to be implemented in debug_tools
-            pass
         
         st.markdown("---")
         

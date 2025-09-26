@@ -94,15 +94,6 @@ class DebugTools:
     @staticmethod
     def run_comprehensive_test() -> Dict:
         """Exécuter test système complet"""
-        
-        # CSS pour tableaux avec police augmentée
-        st.markdown("""
-        <style>
-            .dataframe { font-size: 16px !important; }
-            .dataframe td, .dataframe th { font-size: 16px !important; padding: 8px !important; }
-        </style>
-        """, unsafe_allow_html=True)
-        
         st.markdown("### 🔧 Test Système Complet")
         
         results = {

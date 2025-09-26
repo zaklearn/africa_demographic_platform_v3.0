@@ -11,7 +11,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# Page config
+# Page config - MODE CLAIR PAR DÉFAUT
 st.set_page_config(
     page_title="🌍 Africa Demographics Platform",
     page_icon="🌍",
@@ -19,9 +19,26 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Enhanced CSS
+# Enhanced CSS - MODE CLAIR + POLICE TABLEAUX AUGMENTÉE
 st.markdown("""
 <style>
+    /* Force mode clair */
+    .stApp {
+        background-color: white !important;
+        color: black !important;
+    }
+    
+    /* Tableaux avec police augmentée */
+    .dataframe {
+        font-size: 16px !important;
+    }
+    
+    .dataframe td, .dataframe th {
+        font-size: 16px !important;
+        padding: 8px !important;
+    }
+    
+    /* Styles existants préservés */
     .main-header {
         font-size: 2.5rem;
         font-weight: bold;
@@ -79,7 +96,7 @@ def create_multilingual_continental_overview(df: pd.DataFrame, ml_config: Multil
         st.error(f"❌ {continental_metrics['error']}")
         return
     
-    # Population highlight avec formatage localisé
+    # Population highlight - VALEURS ARRONDIES
     pop_millions = continental_metrics.get('total_population_millions', 0)
     if pop_millions > 0:
         pop_formatted = ml_config.format_number(pop_millions, 0)
@@ -94,7 +111,7 @@ def create_multilingual_continental_overview(df: pd.DataFrame, ml_config: Multil
         </div>
         ''', unsafe_allow_html=True)
     
-    # Key metrics avec formatage localisé
+    # Key metrics - VALEURS ARRONDIES
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -103,29 +120,20 @@ def create_multilingual_continental_overview(df: pd.DataFrame, ml_config: Multil
     
     with col2:
         median_age = continental_metrics.get('weighted_median_age', float('nan'))
-        if not pd.isna(median_age):
-            age_display = f"{ml_config.format_number(median_age, 1)} {ml_config.t('years')}"
-        else:
-            age_display = "N/A"
+        age_display = f"{ml_config.format_number(median_age, 1)} {ml_config.t('years')}" if not pd.isna(median_age) else "N/A"
         st.metric(f"👥 {ml_config.t('median_age')}", age_display)
     
     with col3:
         tfr = continental_metrics.get('weighted_tfr', float('nan'))
-        if not pd.isna(tfr):
-            tfr_display = f"{ml_config.format_number(tfr, 1)}"
-        else:
-            tfr_display = "N/A"
+        tfr_display = f"{ml_config.format_number(tfr, 1)}" if not pd.isna(tfr) else "N/A"
         st.metric(f"👶 {ml_config.t('fertility_rate')}", tfr_display)
     
     with col4:
         growth_rate = continental_metrics.get('weighted_growth_rate', float('nan'))
-        if not pd.isna(growth_rate):
-            growth_display = f"{ml_config.format_number(growth_rate, 1)}{ml_config.t('percent_per_year')}"
-        else:
-            growth_display = "N/A"
+        growth_display = f"{ml_config.format_number(growth_rate, 1)}{ml_config.t('percent_per_year')}" if not pd.isna(growth_rate) else "N/A"
         st.metric(f"📈 {ml_config.t('growth_rate')}", growth_display)
     
-    # Demographic Dividend Tracker multilingue
+    # Demographic Dividend Tracker
     st.markdown(f"### 🎯 {ml_config.t('demographic_dividend')} - {ml_config.t('real_time_data')}")
     create_multilingual_dividend_tracker(continental_metrics.get('dividend_distribution', {}), ml_config)
 
@@ -143,11 +151,9 @@ def create_multilingual_dividend_tracker(dividend_dist: dict, ml_config: Multili
     
     for i, (col, (status_key, emoji, color1, color2)) in enumerate(zip([col1, col2, col3, col4], status_configs)):
         with col:
-            # Les clés dans dividend_dist sont en anglais (venant de l'API)
             english_status = ml_config.translator.get_text(status_key, "en")
             count = dividend_dist.get(english_status, 0)
             status_name = ml_config.t(status_key)
-            
             countries_text = "pays" if ml_config.get_language() == "fr" else "countries"
             
             st.markdown(f"""
@@ -159,23 +165,17 @@ def create_multilingual_dividend_tracker(dividend_dist: dict, ml_config: Multili
             </div>
             """, unsafe_allow_html=True)
 
-
 def create_multilingual_africa_map(df: pd.DataFrame, indicator: str, year: int, ml_config: MultilingualConfig):
-    """Carte Afrique multilingue - Version corrigée"""
+    """Carte Afrique avec représentation unifiée du Maroc"""
     
-    map_data = df[df['year'] == year].copy()
-    if map_data.empty or indicator not in map_data.columns:
-        indicator_name = ml_config.translator.get_indicator_name(indicator, ml_config.get_language())
-        st.error(f"{ml_config.t('no_data')} {indicator_name} {year}")
-        return
+    # Récupération des données avec fallback
+    map_data = get_best_available_data(df, indicator, year, max_years_back=3)
     
-    # Nettoyer les données manquantes AVANT le mapping
-    map_data = map_data.dropna(subset=[indicator])
     if map_data.empty:
-        st.warning(f"Aucune donnée disponible pour {indicator} en {year}")
+        st.warning(f"Aucune donnée disponible pour {indicator}")
         return
     
-    # Mapping ISO2 vers ISO3 COMPLET (ajout des codes manquants)
+    # Mapping ISO2 vers ISO3
     iso2_to_iso3 = {
         'DZ': 'DZA', 'AO': 'AGO', 'BJ': 'BEN', 'BW': 'BWA', 'BF': 'BFA',
         'BI': 'BDI', 'CM': 'CMR', 'CV': 'CPV', 'CF': 'CAF', 'TD': 'TCD',
@@ -190,22 +190,22 @@ def create_multilingual_africa_map(df: pd.DataFrame, indicator: str, year: int, 
         'TN': 'TUN', 'UG': 'UGA', 'ZM': 'ZMB', 'ZW': 'ZWE'
     }
     
-    # Appliquer le mapping avec gestion d'erreurs
     map_data['country_iso3'] = map_data['country_iso2'].map(iso2_to_iso3)
-    
-    # Vérifier les codes non mappés
-    unmapped = map_data[map_data['country_iso3'].isna()]
-    if not unmapped.empty:
-        st.warning(f"Codes ISO2 non mappés: {unmapped['country_iso2'].unique().tolist()}")
-    
-    # Supprimer les lignes sans mapping
     map_data = map_data.dropna(subset=['country_iso3'])
     
-    if map_data.empty:
-        st.error("Aucun pays mappé correctement pour la visualisation")
-        return
+    # SOLUTION: Dupliquer les données du Maroc pour le Sahara Occidental
+    morocco_data = map_data[map_data['country_iso3'] == 'MAR']
+    if not morocco_data.empty:
+        # Créer entrée pour Sahara Occidental avec les mêmes données que le Maroc
+        sahara_data = morocco_data.copy()
+        sahara_data['country_iso3'] = 'ESH'
+        sahara_data['country_name'] = 'Morocco'
+        sahara_data['country_iso2'] = 'EH'
+        
+        # Ajouter aux données cartographiques
+        map_data = pd.concat([map_data, sahara_data], ignore_index=True)
     
-    # Titre multilingue
+    # Configuration titre
     try:
         indicator_name = ml_config.translator.get_indicator_name(indicator, ml_config.get_language())
     except:
@@ -216,68 +216,80 @@ def create_multilingual_africa_map(df: pd.DataFrame, indicator: str, year: int, 
     else:
         title = f"Africa: {indicator_name} ({year})"
     
-    # Debug: Afficher les statistiques des données
-    st.info(f"Données cartographiques: {len(map_data)} pays, valeurs de {map_data[indicator].min():.2f} à {map_data[indicator].max():.2f}")
+    # Créer la carte
+    fig = px.choropleth(
+        map_data,
+        locations='country_iso3',
+        color=indicator,
+        hover_name='country_name',
+        hover_data={
+            indicator: ':.2f',
+            'year': True,
+            'country_iso3': False
+        },
+        color_continuous_scale='Viridis',
+        title=title,
+        labels={indicator: indicator_name}
+    )
     
-    # Créer la carte avec configuration améliorée
-    try:
-        fig = px.choropleth(
-            map_data,
-            locations='country_iso3',
-            color=indicator,
-            hover_name='country_name',
-            hover_data={
-                indicator: ':.2f',
-                'country_iso3': False
-            },
-            color_continuous_scale='Viridis',
-            title=title,
-            labels={indicator: indicator_name}
+    # Configuration géographique spécialisée
+    fig.update_geos(
+        projection_type="natural earth",
+        showframe=False,
+        showcoastlines=True,
+        showcountries=True,
+        countrycolor="rgba(128,128,128,0.3)",  # Frontières légères
+        # Masquer certaines frontières sensibles
+        visible=False,
+        resolution=50,  # Résolution plus basse pour masquer détails
+        lonaxis_range=[-25, 55],
+        lataxis_range=[-40, 40],
+        projection=dict(
+            rotation=dict(lon=15, lat=0)
         )
-        
-        # Configuration géographique optimisée pour l'Afrique
-        fig.update_geos(
-            projection_type="natural earth",
-            showframe=False,
-            showcoastlines=True,
-            showcountries=True,
-            countrycolor="lightgray",
-            # Cadrage spécifique Afrique
-            lonaxis_range=[-25, 55],
-            lataxis_range=[-40, 40],
-            # Centrer sur l'Afrique
-            projection=dict(
-                rotation=dict(lon=15, lat=0)
-            )
+    )
+    
+    fig.update_layout(
+        height=600,
+        title_x=0.5,
+        coloraxis_colorbar=dict(
+            title=indicator_name,
+            title_side="right"
         )
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Note explicative
+    if any(map_data['country_iso3'] == 'ESH'):
+        st.caption("ℹ️ Les données du Maroc incluent l'ensemble du territoire selon la configuration géographique utilisée.")
+    
+    return fig
+
+def get_best_available_data(df, indicator, target_year, max_years_back=3):
+    """Helper pour récupérer données avec fallback"""
+    result_data = []
+    
+    for country in df['country_iso2'].unique():
+        country_data = df[df['country_iso2'] == country]
         
-        fig.update_layout(
-            height=600,
-            title_x=0.5,
-            coloraxis_colorbar=dict(
-                title=indicator_name,
-                title_side="right"
-            )
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Afficher quelques statistiques
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Pays affichés", len(map_data))
-        with col2:
-            st.metric("Valeur max", f"{map_data[indicator].max():.2f}")
-        with col3:
-            st.metric("Valeur min", f"{map_data[indicator].min():.2f}")
+        for year_offset in range(max_years_back + 1):
+            check_year = target_year - year_offset
+            year_data = country_data[country_data['year'] == check_year]
             
-    except Exception as e:
-        st.error(f"Erreur lors de la création de la carte: {str(e)}")
-        st.write("Données disponibles:")
-        st.write(map_data[['country_name', 'country_iso3', indicator]].head(10))
+            if not year_data.empty and pd.notna(year_data[indicator].iloc[0]):
+                result_data.append({
+                    'country_iso2': country,
+                    'country_name': year_data['country_name'].iloc[0],
+                    'year': check_year,
+                    indicator: round(year_data[indicator].iloc[0], 2)
+                })
+                break
+    
+    return pd.DataFrame(result_data)
 
 def create_population_pyramid(df: pd.DataFrame, country_name: str, year: int = 2023, animate: bool = False):
-    """CORRECTIF TÂCHE 5: Create population pyramid with realistic demographic distribution"""
+    """Pyramide population avec distribution réaliste et valeurs arrondies"""
     
     country_data = df[df['country_name'] == country_name].copy()
     
@@ -285,7 +297,6 @@ def create_population_pyramid(df: pd.DataFrame, country_name: str, year: int = 2
         st.error(f"No data available for {country_name}")
         return
     
-    # Generate age structure data based on demographic indicators
     if animate:
         animation_years = sorted(country_data['year'].unique())
         pyramid_data = country_data
@@ -303,126 +314,100 @@ def create_population_pyramid(df: pd.DataFrame, country_name: str, year: int = 2
     
     fig = go.Figure()
     
-    # CORRECTIF: Fonction de distribution démographique réaliste
     def generate_realistic_age_distribution(tfr, life_exp, growth_rate):
-        """Génère distribution d'âge basée sur modèle démographique simplifié"""
+        """Distribution démographique réaliste avec valeurs arrondies"""
         
-        # Valeurs par défaut et limites
         tfr = np.clip(tfr if pd.notna(tfr) else 4.0, 1.5, 8.0)
         life_exp = np.clip(life_exp if pd.notna(life_exp) else 60, 40, 85)
         growth_rate = np.clip(growth_rate if pd.notna(growth_rate) else 2.5, -1, 5)
         
-        # NOUVEAU MODÈLE: Distribution basée sur taux de survie et natalité
-        base_population = 100000  # Population de référence
-        
-        # Taux de survie par groupe d'âge (modèle de Coale-Demeny)
+        base_population = 100000
         survival_rates = []
+        
         for i, age_group in enumerate(age_groups):
-            if i < 3:  # 0-14 ans
-                # Survie juvénile liée à l'espérance de vie
+            if i < 3:
                 survival = 0.95 + (life_exp - 50) * 0.001
-            elif i < 13:  # 15-64 ans
-                # Population active avec survie élevée
+            elif i < 13:
                 survival = 0.98 - (i - 3) * 0.005
-            else:  # 65+ ans
-                # Déclin lié à l'espérance de vie
+            else:
                 decline_factor = (85 - life_exp) * 0.01
                 survival = max(0.3, 0.85 - (i - 13) * 0.1 - decline_factor)
             
             survival_rates.append(max(0.1, min(0.99, survival)))
         
-        # Distribution initiale basée sur TFR et croissance
         age_distribution = []
         
         for i, age_group in enumerate(age_groups):
-            if i == 0:  # 0-4 ans: directement lié au TFR
-                base_births = base_population * (tfr / 5.0) * 0.048  # 5 ans par groupe
+            if i == 0:
+                base_births = base_population * (tfr / 5.0) * 0.048
                 population = base_births * survival_rates[i]
             else:
-                # Population précédente qui survit et vieillit
                 prev_pop = age_distribution[i-1] if i > 0 else base_births
-                
-                # Effet de la croissance démographique passée
-                growth_effect = (1 + growth_rate/100) ** (-(i * 5))  # Croissance rétroactive
-                
+                growth_effect = (1 + growth_rate/100) ** (-(i * 5))
                 population = prev_pop * survival_rates[i] * growth_effect
                 
-                # Cas spécial pour les très âgés
-                if i >= 15:  # 75+ ans
-                    population *= 0.6  # Réduction naturelle
+                if i >= 15:
+                    population *= 0.6
             
-            age_distribution.append(max(100, population))  # Minimum réaliste
+            age_distribution.append(max(100, population))
         
-        # Normaliser pour obtenir des pourcentages
         total_pop = sum(age_distribution)
         if total_pop > 0:
-            age_percentages = [pop / total_pop * 100 for pop in age_distribution]
+            age_percentages = [round(pop / total_pop * 100, 2) for pop in age_distribution]
         else:
-            # Fallback si calcul échoue
-            age_percentages = [5.5] * 3 + [4.0] * 10 + [2.0] * 4  # Distribution typique
+            age_percentages = [5.5] * 3 + [4.0] * 10 + [2.0] * 4
         
         return age_percentages
     
-    # Create population pyramid for each year
     for yr in animation_years:
         year_data = pyramid_data[pyramid_data['year'] == yr]
         if year_data.empty:
             continue
         
-        # Get demographic parameters
         latest_data = year_data.iloc[0]
         tfr = latest_data.get('total_fertility_rate', 4.0)
         life_exp = latest_data.get('life_expectancy', 60)
         growth_rate = latest_data.get('population_growth_rate', 2.5)
         
-        # Generate realistic distribution
         population_by_age = generate_realistic_age_distribution(tfr, life_exp, growth_rate)
         
-        # Split by gender (légèrement plus d'hommes à la naissance)
-        male_pop = [-pop * 0.515 for pop in population_by_age]  # Sex ratio réaliste
-        female_pop = [pop * 0.485 for pop in population_by_age]
+        male_pop = [round(-pop * 0.515, 2) for pop in population_by_age]
+        female_pop = [round(pop * 0.485, 2) for pop in population_by_age]
         
         fig.add_trace(go.Bar(
-            y=age_groups,
-            x=male_pop,
-            name='Male',
-            orientation='h',
-            marker_color='lightblue',
+            y=age_groups, x=male_pop, name='Male',
+            orientation='h', marker_color='lightblue',
             visible=(yr == animation_years[0])
         ))
         
         fig.add_trace(go.Bar(
-            y=age_groups,
-            x=female_pop,
-            name='Female',
-            orientation='h',
-            marker_color='pink',
+            y=age_groups, x=female_pop, name='Female',
+            orientation='h', marker_color='pink',
             visible=(yr == animation_years[0])
         ))
     
-    # Animation controls
     if animate and len(animation_years) > 1:
         frames = []
-        for i, yr in enumerate(animation_years):
-            year_data = pyramid_data[pyramid_data['year'] == yr].iloc[0] if not pyramid_data[pyramid_data['year'] == yr].empty else None
-            if year_data is None:
+        for yr in animation_years:
+            year_data = pyramid_data[pyramid_data['year'] == yr]
+            if year_data.empty:
                 continue
             
-            tfr = year_data.get('total_fertility_rate', 4.0)
-            life_exp = year_data.get('life_expectancy', 60)
-            growth_rate = year_data.get('population_growth_rate', 2.5)
+            latest_data = year_data.iloc[0]
+            tfr = latest_data.get('total_fertility_rate', 4.0)
+            life_exp = latest_data.get('life_expectancy', 60)
+            growth_rate = latest_data.get('population_growth_rate', 2.5)
             
             population_by_age = generate_realistic_age_distribution(tfr, life_exp, growth_rate)
-            male_pop = [-pop * 0.515 for pop in population_by_age]
-            female_pop = [pop * 0.485 for pop in population_by_age]
+            male_pop = [round(-pop * 0.515, 2) for pop in population_by_age]
+            female_pop = [round(pop * 0.485, 2) for pop in population_by_age]
             
             frames.append(go.Frame(
                 data=[
                     go.Bar(y=age_groups, x=male_pop, name='Male', marker_color='lightblue'),
                     go.Bar(y=age_groups, x=female_pop, name='Female', marker_color='pink')
                 ],
-                name=str(yr),
-                layout=go.Layout(title=f"Population Pyramid - {country_name} ({yr})")
+                name=str(yr)
             ))
         
         fig.frames = frames
@@ -431,76 +416,26 @@ def create_population_pyramid(df: pd.DataFrame, country_name: str, year: int = 2
             updatemenus=[{
                 'type': 'buttons',
                 'buttons': [
-                    {
-                        'label': 'Play',
-                        'method': 'animate',
-                        'args': [None, {
-                            'frame': {'duration': 800, 'redraw': True},
-                            'fromcurrent': True,
-                            'transition': {'duration': 300, 'easing': 'quadratic-in-out'}
-                        }]
-                    },
-                    {
-                        'label': 'Pause',
-                        'method': 'animate',
-                        'args': [[None], {
-                            'frame': {'duration': 0, 'redraw': True},
-                            'mode': 'immediate',
-                            'transition': {'duration': 0}
-                        }]
-                    }
-                ],
-                'direction': 'left',
-                'pad': {'r': 10, 't': 87},
-                'showactive': False,
-                'type': 'buttons',
-                'x': 0.1,
-                'xanchor': 'right',
-                'y': 0,
-                'yanchor': 'top'
+                    {'label': 'Play', 'method': 'animate', 'args': [None]},
+                    {'label': 'Pause', 'method': 'animate', 'args': [[None]]}
+                ]
             }],
             sliders=[{
-                'active': 0,
-                'yanchor': 'top',
-                'xanchor': 'left',
-                'currentvalue': {
-                    'font': {'size': 20},
-                    'prefix': 'Year:',
-                    'visible': True,
-                    'xanchor': 'right'
-                },
-                'transition': {'duration': 300, 'easing': 'cubic-in-out'},
-                'pad': {'b': 10, 't': 50},
-                'len': 0.9,
-                'x': 0.1,
-                'y': 0,
-                'steps': [
-                    {
-                        'args': [[str(yr)], {
-                            'frame': {'duration': 300, 'redraw': True},
-                            'mode': 'immediate',
-                            'transition': {'duration': 300}
-                        }],
-                        'label': str(yr),
-                        'method': 'animate'
-                    } for yr in animation_years
-                ]
+                'steps': [{'args': [[str(yr)]], 'label': str(yr), 'method': 'animate'} 
+                         for yr in animation_years]
             }]
         )
     
     fig.update_layout(
-        title=f"Population Pyramid - {country_name} ({animation_years[0] if not animate else f'{min(animation_years)}-{max(animation_years)}'})",
-        xaxis_title='Population (%)',
-        yaxis_title='Age Groups',
-        barmode='relative',
-        height=600,
-        showlegend=True
+        title=f"Population Pyramid - {country_name} ({year})",
+        xaxis_title='Population (%)', yaxis_title='Age Groups',
+        barmode='relative', height=600
     )
     
     st.plotly_chart(fig, use_container_width=True)
 
 def create_trend_comparison(df: pd.DataFrame, countries: list, indicators: list):
-    """Create multi-country trend comparison"""
+    """Comparaison tendances multi-pays avec valeurs arrondies"""
     
     if not countries or not indicators:
         st.warning("Please select countries and indicators for comparison")
@@ -509,8 +444,7 @@ def create_trend_comparison(df: pd.DataFrame, countries: list, indicators: list)
     trend_data = df[df['country_name'].isin(countries)].copy()
     
     fig = make_subplots(
-        rows=len(indicators), 
-        cols=1,
+        rows=len(indicators), cols=1,
         subplot_titles=[ind.replace('_', ' ').title() for ind in indicators],
         vertical_spacing=0.08
     )
@@ -526,124 +460,104 @@ def create_trend_comparison(df: pd.DataFrame, countries: list, indicators: list)
             clean_data = country_data[['year', indicator]].dropna()
             
             if not clean_data.empty:
+                clean_data[indicator] = clean_data[indicator].round(2)
+                
                 fig.add_trace(
                     go.Scatter(
-                        x=clean_data['year'],
-                        y=clean_data[indicator],
-                        mode='lines+markers',
-                        name=country,
-                        line=dict(color=colors[j]),
-                        showlegend=(i == 0)
+                        x=clean_data['year'], y=clean_data[indicator],
+                        mode='lines+markers', name=country,
+                        line=dict(color=colors[j]), showlegend=(i == 0)
                     ),
                     row=i+1, col=1
                 )
     
     fig.update_layout(
         height=300 * len(indicators),
-        title="Multi-Country Demographic Trends Comparison",
-        showlegend=True
+        title="Multi-Country Demographic Trends Comparison"
     )
     
     st.plotly_chart(fig, use_container_width=True)
 
 def create_clustering_visualization(clustered_data: pd.DataFrame):
-    """Create ML clustering visualization"""
+    """Visualisation clustering avec valeurs arrondies"""
     
     if clustered_data.empty:
-        st.error("No clustering data available")
         return None, None
     
     available_indicators = ['total_fertility_rate', 'median_age', 'population_growth_rate', 'life_expectancy']
     valid_indicators = [ind for ind in available_indicators if ind in clustered_data.columns]
     
     if len(valid_indicators) < 2:
-        st.error("Insufficient indicators for clustering visualization")
         return None, None
     
-    try:
-        x_indicator = valid_indicators[0]
-        y_indicator = valid_indicators[1]
+    x_indicator, y_indicator = valid_indicators[0], valid_indicators[1]
+    
+    clustered_data_display = clustered_data.copy()
+    for indicator in [x_indicator, y_indicator]:
+        clustered_data_display[indicator] = clustered_data_display[indicator].round(2)
+    
+    size_col = None
+    if 'population_growth_rate' in clustered_data_display.columns:
+        size_data = clustered_data_display['population_growth_rate'].fillna(0)
+        size_col = np.abs(size_data) + 1
+    
+    fig_scatter = px.scatter(
+        clustered_data_display, x=x_indicator, y=y_indicator,
+        color='cluster_label' if 'cluster_label' in clustered_data_display.columns else 'cluster',
+        size=size_col, hover_name='country_name',
+        title='Country Clustering by Demographic Profile',
+        labels={x_indicator: x_indicator.replace('_', ' ').title(),
+                y_indicator: y_indicator.replace('_', ' ').title()}
+    )
+    
+    fig_scatter.update_layout(height=500)
+    
+    cluster_summary = None
+    if 'cluster_label' in clustered_data.columns:
+        summary_indicators = [ind for ind in valid_indicators if ind in clustered_data.columns]
         
-        size_col = None
-        if 'population_growth_rate' in clustered_data.columns:
-            size_data = clustered_data['population_growth_rate'].fillna(0)
-            size_data = np.abs(size_data) + 1
-            size_col = size_data
+        cluster_stats = clustered_data.groupby('cluster_label').agg({
+            **{ind: ['mean', 'count'] for ind in summary_indicators[:3]},
+            'country_name': 'count'
+        }).round(2)
         
-        fig_scatter = px.scatter(
-            clustered_data,
-            x=x_indicator,
-            y=y_indicator,
-            color='cluster_label' if 'cluster_label' in clustered_data.columns else 'cluster',
-            size=size_col,
-            hover_name='country_name',
-            title='Country Clustering by Demographic Profile',
-            labels={
-                x_indicator: x_indicator.replace('_', ' ').title(),
-                y_indicator: y_indicator.replace('_', ' ').title()
-            },
-            color_discrete_sequence=px.colors.qualitative.Set1
-        )
+        cluster_stats.columns = [f"{col[0]}_{col[1]}" if col[1] != 'count' or col[0] != 'country_name' 
+                               else 'Countries' for col in cluster_stats.columns]
         
-        fig_scatter.update_layout(height=500, showlegend=True)
-        
-        cluster_summary = None
-        if 'cluster_label' in clustered_data.columns:
-            summary_indicators = [ind for ind in valid_indicators if ind in clustered_data.columns]
-            
-            cluster_stats = clustered_data.groupby('cluster_label').agg({
-                **{ind: ['mean', 'count'] for ind in summary_indicators[:3]},
-                'country_name': 'count'
-            }).round(2)
-            
-            cluster_stats.columns = [f"{col[0]}_{col[1]}" if col[1] != 'count' or col[0] != 'country_name' 
-                                   else 'Countries' for col in cluster_stats.columns]
-            
-            cluster_summary = cluster_stats
-        
-        return fig_scatter, cluster_summary
-        
-    except Exception as e:
-        st.error(f"Error creating clustering visualization: {e}")
-        return None, None
+        cluster_summary = cluster_stats
+    
+    return fig_scatter, cluster_summary
 
 def main():
-    # Setup
     Config.setup_directories()
-    
-    # Initialisation configuration multilingue
+
     if 'ml_config' not in st.session_state:
         st.session_state.ml_config = MultilingualConfig()
     
     ml_config = st.session_state.ml_config
     
-    # Initialize components
     api_service = WorldBankAPIService()
     analytics = DemographicAnalytics()
     cache = CacheManager()
     debug = DebugTools()
     
-    # Sidebar navigation multilingue
-    st.sidebar.markdown("## 🌐 Language / Langue")
+    # Sidebar navigation
+    st.sidebar.markdown("## 🌍 Language / Langue")
     language = st.sidebar.selectbox(
         "Select Language / Choisir la langue:",
         ["fr", "en"],
         index=0 if ml_config.get_language() == "fr" else 1,
-        format_func=lambda x: "🇫🇷 Français" if x == "fr" else "🇬🇧 English",
-        key="language_selector"
+        format_func=lambda x: "🇫🇷 Français" if x == "fr" else "🇬🇧 English"
     )
     
     if language != ml_config.get_language():
         ml_config.set_language(language)
         st.rerun()
     
-    # Titre principal
     st.markdown(f'<h1 class="main-header">🌍 {ml_config.t("app_title")}</h1>', unsafe_allow_html=True)
     
-    # Sidebar navigation
     st.sidebar.markdown(f"## 🌍 {ml_config.t('navigation')}")
     
-    # Menu traduit
     menu_options = [
         ml_config.t("continental_overview"),
         ml_config.t("country_profiles"), 
@@ -666,7 +580,7 @@ def main():
     - {ml_config.t('population_weighted')}
     """)
     
-    # Data loading options
+    # Data loading
     data_loading_text = "⚙️ Chargement des Données" if ml_config.get_language() == "fr" else "⚙️ Data Loading"
     st.sidebar.markdown(f"## {data_loading_text}")
     
@@ -695,9 +609,8 @@ def main():
         no_cache_text = "🗃 Pas de fichiers cache" if ml_config.get_language() == "fr" else "🗃 No cache files"
         st.sidebar.info(no_cache_text)
     
-    # Main content based on selected page
+    # Main content
     if page == ml_config.t("continental_overview"):
-        """Vue Continentale Multilingue"""
         try:
             with st.spinner(ml_config.t("loading_data")):
                 df = load_demographic_data(use_core_only=use_core_indicators)
@@ -706,13 +619,10 @@ def main():
                 st.error(ml_config.t("no_data"))
                 return
             
-            # Show data status
             st.sidebar.success(f"✅ {df['country_iso2'].nunique()}/54 countries")
             
-            # Create main overview with multilingual support
             create_multilingual_continental_overview(df, ml_config, analytics)
             
-            # Interactive features
             if not df.empty:
                 st.markdown("---")
                 
@@ -770,7 +680,6 @@ def main():
             st.info(debug_text)
     
     elif page == ml_config.t("country_profiles"):
-        """Profils Pays Multilingues"""
         try:
             df = load_demographic_data(use_core_only=use_core_indicators)
             
@@ -781,7 +690,6 @@ def main():
             profiles_header = f'<div class="section-header">🏛️ {ml_config.t("country_profiles")} - {ml_config.t("demographic_dividend_desc")}</div>'
             st.markdown(profiles_header, unsafe_allow_html=True)
             
-            # Country selector
             available_countries = sorted(df['country_name'].unique())
             select_text = f"{ml_config.t('select_country')} profil détaillé:" if ml_config.get_language() == "fr" else "Select country for detailed profile:"
             selected_country = st.selectbox(select_text, available_countries)
@@ -789,7 +697,6 @@ def main():
             country_data = df[df['country_name'] == selected_country].copy()
             
             if not country_data.empty:
-                # Country overview metrics
                 latest_data = country_data[country_data['year'] == country_data['year'].max()].iloc[0]
                 
                 overview_text = "Aperçu du Profil" if ml_config.get_language() == "fr" else "Profile Overview"
@@ -828,7 +735,6 @@ def main():
                     else:
                         st.metric(ml_config.t("demographic_dividend"), "N/A")
                 
-                # Population Pyramids - Animated feature
                 pyramid_title = f"### 📈 {ml_config.t('population_pyramid')} - Analyse"
                 st.markdown(pyramid_title)
                 
@@ -848,7 +754,6 @@ def main():
                 with col1:
                     create_population_pyramid(df, selected_country, pyramid_year, animate_pyramid)
                 
-                # Historical trends for all indicators
                 trends_title = f"### 📈 {ml_config.t('trend_analysis')} - Historiques"
                 st.markdown(trends_title)
                 
@@ -872,7 +777,6 @@ def main():
             st.error(f"Error in country profiles: {e}")
     
     elif page == ml_config.t("trend_analysis"):
-        """Analyse Tendances Multilingue"""
         try:
             df = load_demographic_data(use_core_only=use_core_indicators)
             
@@ -883,7 +787,6 @@ def main():
             trends_header = f'<div class="section-header">📈 {ml_config.t("trend_analysis")} - {ml_config.t("countries_comparison")}</div>'
             st.markdown(trends_header, unsafe_allow_html=True)
             
-            # Country and indicator selection
             col1, col2 = st.columns(2)
             
             with col1:
@@ -914,17 +817,14 @@ def main():
                 )
             
             if selected_countries and selected_indicators:
-                # Multi-country comparison
                 create_trend_comparison(df, selected_countries, selected_indicators)
                 
-                # Statistical analysis
                 stats_title = f"### 📊 {ml_config.t('demographic_transition')} Statistiques"
                 st.markdown(stats_title)
                 
                 comparison_analysis = analytics.generate_country_comparison(df, selected_countries, selected_indicators)
                 
                 if comparison_analysis:
-                    # Latest values comparison
                     latest_title = "#### Comparaison Valeurs Récentes" if ml_config.get_language() == "fr" else "#### Latest Values Comparison"
                     st.markdown(latest_title)
                     for indicator, data in comparison_analysis['latest_comparison'].items():
@@ -933,7 +833,6 @@ def main():
                         ranking_df = pd.DataFrame(data['ranking'], columns=['Pays' if ml_config.get_language() == "fr" else 'Country', 'Valeur' if ml_config.get_language() == "fr" else 'Value'])
                         st.dataframe(ranking_df, hide_index=True)
                     
-                    # Correlations
                     if comparison_analysis['correlations']:
                         corr_title = "#### Corrélations entre Indicateurs" if ml_config.get_language() == "fr" else "#### Indicator Correlations"
                         st.markdown(corr_title)
@@ -954,7 +853,6 @@ def main():
             st.error(f"Error in trend analysis: {e}")
     
     elif page == ml_config.t("clustering_analysis"):
-        """Analyse Clustering Multilingue"""
         try:
             df = load_demographic_data(use_core_only=use_core_indicators)
             
@@ -965,7 +863,6 @@ def main():
             clustering_header = f'<div class="section-header">🔬 {ml_config.t("clustering_analysis")} - {ml_config.t("ml_clustering_desc")}</div>'
             st.markdown(clustering_header, unsafe_allow_html=True)
             
-            # Clustering controls
             col1, col2 = st.columns(2)
             
             with col1:
@@ -983,11 +880,9 @@ def main():
                 **{classification}**
                 """)
             
-            # Perform clustering
             clustered_data = analytics.get_country_clusters(df, cluster_year)
             
             if not clustered_data.empty:
-                # Clustering visualization
                 clusters_title = f"### 🎯 {ml_config.t('countries_comparison')} par {ml_config.t('demographic_transition')}"
                 st.markdown(clusters_title)
                 
@@ -996,13 +891,11 @@ def main():
                 if fig_scatter:
                     st.plotly_chart(fig_scatter, use_container_width=True)
                 
-                # Cluster analysis table
                 if cluster_summary is not None:
                     characteristics_title = f"### 📊 Caractéristiques des Clusters" if ml_config.get_language() == "fr" else "### 📊 Cluster Characteristics"
                     st.markdown(characteristics_title)
                     st.dataframe(cluster_summary)
                 
-                # Countries by cluster
                 countries_by_stage = f"### 🗂️ {ml_config.t('countries_comparison')} par Stade de {ml_config.t('demographic_transition')}"
                 st.markdown(countries_by_stage)
                 
@@ -1010,7 +903,6 @@ def main():
                     for cluster_label in sorted(clustered_data['cluster_label'].unique()):
                         cluster_countries = clustered_data[clustered_data['cluster_label'] == cluster_label]['country_name'].tolist()
                         
-                        # Color coding for clusters
                         if 'High Fertility' in cluster_label:
                             color = "🔴"
                         elif 'Moderate' in cluster_label:
@@ -1031,7 +923,6 @@ def main():
             st.error(f"Error in clustering analysis: {e}")
     
     elif page == ml_config.t("data_explorer"):
-        """Explorateur Données Multilingue"""
         try:
             df = load_demographic_data(use_core_only=use_core_indicators)
             
@@ -1042,7 +933,6 @@ def main():
             explorer_header = f'<div class="section-header">🔍 {ml_config.t("data_explorer")} - {ml_config.t("advanced_filtering")}</div>'
             st.markdown(explorer_header, unsafe_allow_html=True)
             
-            # Advanced filters
             filters_title = f"### 🎛️ {ml_config.t('advanced_filtering')}"
             st.markdown(filters_title)
             
@@ -1086,18 +976,19 @@ def main():
                     key="explorer_indicators"
                 )
             
-            # Apply filters
             filtered_df = df[
                 (df['country_name'].isin(selected_countries_explorer)) &
                 (df['year'] >= year_range[0]) &
                 (df['year'] <= year_range[1])
             ].copy()
             
-            # Select columns
             display_cols = ['country_name', 'year'] + selected_indicators_explorer
             display_df = filtered_df[display_cols].copy()
             
-            # Data summary
+            for col in selected_indicators_explorer:
+                if col in display_df.columns:
+                    display_df[col] = display_df[col].round(2)
+            
             summary_title = f"### 📊 {ml_config.t('data_source')} Filtrées"
             st.markdown(summary_title)
             
@@ -1115,12 +1006,10 @@ def main():
                 records_label = "Enregistrements" if ml_config.get_language() == "fr" else "Records"
                 st.metric(records_label, len(display_df))
             
-            # Display data
             dataset_title = f"### 📋 Jeu de {ml_config.t('data_source')} Filtré"
             st.markdown(dataset_title)
             st.dataframe(display_df, use_container_width=True)
             
-            # Statistics
             if selected_indicators_explorer:
                 stats_title = f"### 📈 Statistiques Descriptives" if ml_config.get_language() == "fr" else "### 📈 Descriptive Statistics"
                 st.markdown(stats_title)
@@ -1128,14 +1017,12 @@ def main():
                 stats_df = display_df[selected_indicators_explorer].describe().round(2)
                 st.dataframe(stats_df)
             
-            # Export options
             export_title = f"### {ml_config.t('export_options')}"
             st.markdown(export_title)
             
             col1, col2 = st.columns(2)
             
             with col1:
-                # CSV export
                 csv_data = display_df.to_csv(index=False)
                 filename_csv = f"afrique_demographique_filtre_{datetime.now().strftime('%Y%m%d')}.csv"
                 if ml_config.get_language() == "en":
@@ -1150,7 +1037,6 @@ def main():
                 )
             
             with col2:
-                # JSON export
                 json_data = display_df.to_json(orient='records', indent=2)
                 filename_json = f"afrique_demographique_filtre_{datetime.now().strftime('%Y%m%d')}.json"
                 if ml_config.get_language() == "en":
@@ -1168,11 +1054,9 @@ def main():
             st.error(f"Error in data explorer: {e}")
     
     elif page == ml_config.t("api_status"):
-        """Statut API Multilingue"""
         status_header = f'<div class="section-header">🔌 {ml_config.t("api_status")}</div>'
         st.markdown(status_header, unsafe_allow_html=True)
         
-        # Basic connectivity test
         connectivity_text = "🌐 Tester la connectivité de base" if ml_config.get_language() == "fr" else "🌐 Test Basic Connectivity"
         if st.button(connectivity_text):
             testing_text = "Test en cours..." if ml_config.get_language() == "fr" else "Testing connectivity..."
@@ -1187,14 +1071,12 @@ def main():
         
         st.markdown("---")
         
-        # Comprehensive test
         comprehensive_text = "🧪 Exécuter test système complet" if ml_config.get_language() == "fr" else "🧪 Run Comprehensive Test"
         if st.button(comprehensive_text):
             debug.run_comprehensive_test()
         
         st.markdown("---")
         
-        # Individual indicator test
         individual_test_title = f"### 🔍 Test d'Indicateurs Individuels" if ml_config.get_language() == "fr" else "### 🔍 Test Individual Indicators"
         st.markdown(individual_test_title)
         
@@ -1221,7 +1103,6 @@ def main():
                     st.error(f"❌ {error_text}")
     
     elif page == ml_config.t("cache_management"):
-        """Gestion Cache Multilingue"""
         cache_header = f'<div class="section-header">💾 {ml_config.t("cache_management")}</div>'
         st.markdown(cache_header, unsafe_allow_html=True)
         
@@ -1234,13 +1115,11 @@ def main():
             files_text = "fichiers en cache trouvés" if ml_config.get_language() == "fr" else "cached files found"
             st.success(f"{cache_info['total_files']} {files_text} ({cache_info['total_size_mb']:.1f} MB)")
             
-            # Cache details
             if cache_info['files']:
                 cache_df = pd.DataFrame(cache_info['files'])
                 cache_df['age_hours'] = cache_df['age_hours'].round(1)
                 cache_df['size_kb'] = cache_df['size_kb'].round(1)
                 
-                # Translate column names
                 if ml_config.get_language() == "fr":
                     cache_df = cache_df.rename(columns={
                         'name': 'Nom',
@@ -1251,7 +1130,6 @@ def main():
                 
                 st.dataframe(cache_df, use_container_width=True)
         
-        # Cache actions
         col1, col2, col3 = st.columns(3)
         
         with col1:

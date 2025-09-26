@@ -40,7 +40,7 @@ class DemographicAnalytics:
         if year_data.empty:
             return {
                 'error': 'No demographic data available',
-                'total_population_millions': round(total_pop / 1e6, 2),  # ARRONDIR
+                'total_population_millions': total_pop / 1e6,
                 'metadata': metadata
             }
         
@@ -54,7 +54,7 @@ class DemographicAnalytics:
         if weighted_data.empty:
             return {
                 'error': 'No matching data',
-                'total_population_millions': round(total_pop / 1e6, 2),  # ARRONDIR
+                'total_population_millions': total_pop / 1e6,
                 'metadata': metadata
             }
         
@@ -82,10 +82,10 @@ class DemographicAnalytics:
                     clean_weights = weights[outlier_mask]
                     
                     # Médiane pondérée pour robustesse
-                    return round(np.average(clean_values, weights=clean_weights), 2)  # ARRONDIR
+                    return np.average(clean_values, weights=clean_weights)
             
             # Fallback: moyenne pondérée standard si pas assez de données
-            return round(np.average(values, weights=weights), 2)  # ARRONDIR
+            return np.average(values, weights=weights)
         
         for indicator in ['total_fertility_rate', 'median_age', 'population_growth_rate', 'life_expectancy']:
             if indicator in weighted_data.columns:
@@ -110,7 +110,7 @@ class DemographicAnalytics:
             dividend_counts = weighted_data['dividend_status'].value_counts().to_dict()
         
         return {
-            'total_population_millions': round(total_pop / 1e6, 2),  # ARRONDIR
+            'total_population_millions': total_pop / 1e6,
             'weighted_tfr': weighted_metrics.get('total_fertility_rate', np.nan),
             'weighted_median_age': weighted_metrics.get('median_age', np.nan),
             'weighted_growth_rate': weighted_metrics.get('population_growth_rate', np.nan),
@@ -248,9 +248,9 @@ class DemographicAnalytics:
             for indicator in indicators:
                 if indicator in cluster_data.columns:
                     profile[indicator] = {
-                        'mean': round(cluster_data[indicator].mean(), 2),  # ARRONDIR
-                        'median': round(cluster_data[indicator].median(), 2),  # ARRONDIR
-                        'std': round(cluster_data[indicator].std(), 2)  # ARRONDIR
+                        'mean': cluster_data[indicator].mean(),
+                        'median': cluster_data[indicator].median(),
+                        'std': cluster_data[indicator].std()
                     }
             
             cluster_profiles[cluster_label] = profile
@@ -309,15 +309,12 @@ class DemographicAnalytics:
         for indicator in indicators:
             if indicator in latest_comparison.columns:
                 country_values = latest_comparison.set_index('country_name')[indicator].to_dict()
-                # ARRONDIR LES VALEURS dans le dictionnaire
-                country_values = {k: round(v, 2) if pd.notna(v) else v for k, v in country_values.items()}
-                
                 comparison_metrics[indicator] = {
                     'values': country_values,
                     'ranking': sorted(country_values.items(), key=lambda x: x[1] if pd.notna(x[1]) else 0, reverse=True),
                     'range': {
-                        'min': round(min(v for v in country_values.values() if pd.notna(v)), 2),  # ARRONDIR
-                        'max': round(max(v for v in country_values.values() if pd.notna(v)), 2)   # ARRONDIR
+                        'min': min(v for v in country_values.values() if pd.notna(v)),
+                        'max': max(v for v in country_values.values() if pd.notna(v))
                     } if any(pd.notna(v) for v in country_values.values()) else {}
                 }
         
@@ -329,7 +326,7 @@ class DemographicAnalytics:
                     corr_data = comparison_data[[indicator1, indicator2]].dropna()
                     if len(corr_data) > 3:
                         correlation = corr_data[indicator1].corr(corr_data[indicator2])
-                        correlations[f"{indicator1}_vs_{indicator2}"] = round(correlation, 3)  # ARRONDIR
+                        correlations[f"{indicator1}_vs_{indicator2}"] = correlation
         
         return {
             'latest_comparison': comparison_metrics,

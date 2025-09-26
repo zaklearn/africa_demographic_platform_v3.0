@@ -65,7 +65,7 @@ class CacheManager:
     def get_cache_info(self) -> Dict:
         cache_info = {
             'total_files': 0,
-            'total_size_mb': 0.0,  # ARRONDIR - float par défaut
+            'total_size_mb': 0,
             'files': []
         }
         
@@ -77,15 +77,15 @@ class CacheManager:
         
         if cache_files:
             total_size = sum(f.stat().st_size for f in cache_files)
-            cache_info['total_size_mb'] = round(total_size / (1024 * 1024), 2)  # ARRONDIR
+            cache_info['total_size_mb'] = total_size / (1024 * 1024)
             
             for cache_file in cache_files:
                 stat = cache_file.stat()
                 age_hours = (time.time() - stat.st_mtime) / 3600
                 cache_info['files'].append({
                     'name': cache_file.stem,
-                    'size_kb': round(stat.st_size / 1024, 2),  # ARRONDIR
-                    'age_hours': round(age_hours, 2),  # ARRONDIR
+                    'size_kb': stat.st_size / 1024,
+                    'age_hours': age_hours,
                     'valid': age_hours < self.cache_hours
                 })
         
