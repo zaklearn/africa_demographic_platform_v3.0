@@ -159,8 +159,9 @@ def create_multilingual_dividend_tracker(dividend_dist: dict, ml_config: Multili
             </div>
             """, unsafe_allow_html=True)
 
+
 def create_multilingual_africa_map(df: pd.DataFrame, indicator: str, year: int, ml_config: MultilingualConfig):
-    """Carte Afrique multilingue"""
+    """Carte Afrique multilingue - Version corrigée"""
     
     map_data = df[df['year'] == year].copy()
     if map_data.empty or indicator not in map_data.columns:
@@ -168,11 +169,13 @@ def create_multilingual_africa_map(df: pd.DataFrame, indicator: str, year: int, 
         st.error(f"{ml_config.t('no_data')} {indicator_name} {year}")
         return
     
+    # Nettoyer les données manquantes AVANT le mapping
     map_data = map_data.dropna(subset=[indicator])
     if map_data.empty:
+        st.warning(f"Aucune donnée disponible pour {indicator} en {year}")
         return
     
-    # ISO2 to ISO3 mapping
+    # Mapping ISO2 vers ISO3 COMPLET (ajout des codes manquants)
     iso2_to_iso3 = {
         'DZ': 'DZA', 'AO': 'AGO', 'BJ': 'BEN', 'BW': 'BWA', 'BF': 'BFA',
         'BI': 'BDI', 'CM': 'CMR', 'CV': 'CPV', 'CF': 'CAF', 'TD': 'TCD',
@@ -187,36 +190,91 @@ def create_multilingual_africa_map(df: pd.DataFrame, indicator: str, year: int, 
         'TN': 'TUN', 'UG': 'UGA', 'ZM': 'ZMB', 'ZW': 'ZWE'
     }
     
+    # Appliquer le mapping avec gestion d'erreurs
     map_data['country_iso3'] = map_data['country_iso2'].map(iso2_to_iso3)
+    
+    # Vérifier les codes non mappés
+    unmapped = map_data[map_data['country_iso3'].isna()]
+    if not unmapped.empty:
+        st.warning(f"Codes ISO2 non mappés: {unmapped['country_iso2'].unique().tolist()}")
+    
+    # Supprimer les lignes sans mapping
     map_data = map_data.dropna(subset=['country_iso3'])
     
+    if map_data.empty:
+        st.error("Aucun pays mappé correctement pour la visualisation")
+        return
+    
     # Titre multilingue
-    indicator_name = ml_config.translator.get_indicator_name(indicator, ml_config.get_language())
+    try:
+        indicator_name = ml_config.translator.get_indicator_name(indicator, ml_config.get_language())
+    except:
+        indicator_name = indicator.replace('_', ' ').title()
+    
     if ml_config.get_language() == "fr":
         title = f"Afrique: {indicator_name} ({year})"
     else:
         title = f"Africa: {indicator_name} ({year})"
     
-    fig = px.choropleth(
-        map_data,
-        locations='country_iso3',
-        color=indicator,
-        hover_name='country_name',
-        color_continuous_scale='Viridis',
-        title=title,
-        labels={indicator: indicator_name}
-    )
+    # Debug: Afficher les statistiques des données
+    st.info(f"Données cartographiques: {len(map_data)} pays, valeurs de {map_data[indicator].min():.2f} à {map_data[indicator].max():.2f}")
     
-    fig.update_geos(
-        projection_type="natural earth",
-        showframe=False,
-        showcoastlines=True,
-        lonaxis_range=[-20, 55],
-        lataxis_range=[-40, 40]
-    )
-    
-    fig.update_layout(height=600)
-    st.plotly_chart(fig, use_container_width=True)
+    # Créer la carte avec configuration améliorée
+    try:
+        fig = px.choropleth(
+            map_data,
+            locations='country_iso3',
+            color=indicator,
+            hover_name='country_name',
+            hover_data={
+                indicator: ':.2f',
+                'country_iso3': False
+            },
+            color_continuous_scale='Viridis',
+            title=title,
+            labels={indicator: indicator_name}
+        )
+        
+        # Configuration géographique optimisée pour l'Afrique
+        fig.update_geos(
+            projection_type="natural earth",
+            showframe=False,
+            showcoastlines=True,
+            showcountries=True,
+            countrycolor="lightgray",
+            # Cadrage spécifique Afrique
+            lonaxis_range=[-25, 55],
+            lataxis_range=[-40, 40],
+            # Centrer sur l'Afrique
+            projection=dict(
+                rotation=dict(lon=15, lat=0)
+            )
+        )
+        
+        fig.update_layout(
+            height=600,
+            title_x=0.5,
+            coloraxis_colorbar=dict(
+                title=indicator_name,
+                title_side="right"
+            )
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Afficher quelques statistiques
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Pays affichés", len(map_data))
+        with col2:
+            st.metric("Valeur max", f"{map_data[indicator].max():.2f}")
+        with col3:
+            st.metric("Valeur min", f"{map_data[indicator].min():.2f}")
+            
+    except Exception as e:
+        st.error(f"Erreur lors de la création de la carte: {str(e)}")
+        st.write("Données disponibles:")
+        st.write(map_data[['country_name', 'country_iso3', indicator]].head(10))
 
 def create_population_pyramid(df: pd.DataFrame, country_name: str, year: int = 2023, animate: bool = False):
     """CORRECTIF TÂCHE 5: Create population pyramid with realistic demographic distribution"""
